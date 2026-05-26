@@ -301,6 +301,96 @@ body {
     border-radius: 20px;
 }
 
+.train-progress-bar {
+    height: 100%;
+    background: var(--cyan-glow);
+    transition: width 0.3s;
+}
+
+/* Scanner Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: var(--transition);
+}
+
+.modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.scanner-modal {
+    background: rgba(16, 22, 42, 0.95);
+    border: 1px solid rgba(0, 242, 254, 0.3);
+    border-radius: 16px;
+    padding: 2rem;
+    width: 90%;
+    max-width: 600px;
+    box-shadow: 0 10px 40px rgba(0, 242, 254, 0.2);
+    transform: translateY(20px);
+    transition: var(--transition);
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.modal-overlay.active .scanner-modal {
+    transform: translateY(0);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 1rem;
+}
+
+.close-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.close-btn:hover { color: var(--red-glow); }
+
+.device-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.device-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid var(--emerald-glow);
+}
+
+.device-ip { font-weight: bold; color: var(--text-primary); }
+.device-mac { font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-secondary); }
+
+.loading-spinner {
+    text-align: center;
+    padding: 2rem;
+    color: var(--cyan-glow);
+    animation: pulse-cyan 1.5s infinite;
+}
+
 /* Input Styles */
 .form-group {
     display: flex;

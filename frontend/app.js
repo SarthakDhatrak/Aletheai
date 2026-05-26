@@ -781,6 +781,13 @@ function processTelemetry(data) {
         }
     }
     
+    // Request Notification Permission
+    if ("Notification" in window) {
+        if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+            Notification.requestPermission();
+        }
+    }
+
     // If prediction state changes, update indicator and append logs
     if (currentPrediction !== lastState) {
         updateStateDisplay(currentPrediction);
@@ -860,7 +867,13 @@ function initVisualizers() {
     heatmapCtx = heatmapCanvas.getContext("2d");
     
     cirCanvas = document.getElementById("cirCanvas");
-    cirCtx = cirCanvas.getContext("2d");
+    const ctx = cirCanvas.getContext("2d");
+
+    // Elements for Network Scanner Modal
+    const btnScanNetwork = document.getElementById("btnScanNetwork");
+    const scannerModal = document.getElementById("scannerModal");
+    const btnCloseScanner = document.getElementById("btnCloseScanner");
+    const scannerContent = document.getElementById("scannerContent");
     
     // Set internal canvas resolution to match client bounding boxes
     resizeCanvases();
@@ -944,8 +957,10 @@ function drawSpaceRadar(angles, isScrambled = false) {
             psi += (Math.random() - 0.5) * 0.1;
         }
         
-        // Scale psi (0 to pi/2) into radius (0 to R)
-        const radius = R * (Math.max(0, Math.min(Math.PI / 2, psi)) / (Math.PI / 2));
+        // Scale psi. Givens angles (psi) are typically small (0.0 to 0.5 rads).
+        // Scaling by 0.5 instead of PI/2 pushes the shapes out from the center so they are clearly visible.
+        const psiBounded = Math.max(0, Math.min(0.6, psi));
+        const radius = R * (psiBounded / 0.6);
         
         // Convert polar coordinates to Cartesian
         const x = cx + radius * Math.cos(phi);
@@ -959,24 +974,28 @@ function drawSpaceRadar(angles, isScrambled = false) {
     }
     
     // Close path and stroke with a glowing neon cyan-to-purple gradient (or red/orange if scrambled)
+    radarCtx.closePath();
     const gradient = radarCtx.createRadialGradient(cx, cy, 5, cx, cy, R);
+    
     if (isScrambled) {
-        gradient.addColorStop(0, "rgba(255, 63, 63, 0.8)");
+        gradient.addColorStop(0, "rgba(255, 63, 63, 0.9)");
         gradient.addColorStop(1, "rgba(179, 22, 22, 0.4)");
+        radarCtx.fillStyle = "rgba(255, 63, 63, 0.2)";
         radarCtx.strokeStyle = gradient;
-        radarCtx.lineWidth = 1.5;
-        radarCtx.shadowBlur = 15;
-        radarCtx.shadowColor = "rgba(255, 63, 63, 0.5)";
+        radarCtx.lineWidth = 3;
+        radarCtx.shadowBlur = 20;
+        radarCtx.shadowColor = "rgba(255, 63, 63, 0.8)";
     } else {
-        gradient.addColorStop(0, "#00f2fe");
-        gradient.addColorStop(0.5, "#4facfe");
-        gradient.addColorStop(1, "#b100ff");
+        gradient.addColorStop(0, "rgba(0, 242, 254, 0.9)");
+        gradient.addColorStop(1, "rgba(131, 58, 180, 0.4)");
+        radarCtx.fillStyle = "rgba(0, 242, 254, 0.15)";
         radarCtx.strokeStyle = gradient;
-        radarCtx.lineWidth = 2.5;
-        radarCtx.shadowBlur = 12;
-        radarCtx.shadowColor = "rgba(0, 242, 254, 0.4)";
+        radarCtx.lineWidth = 3;
+        radarCtx.shadowBlur = 20;
+        radarCtx.shadowColor = "rgba(0, 242, 254, 0.8)";
     }
     
+    radarCtx.fill();
     radarCtx.stroke();
     
     // Reset shadow for subsequent drawings

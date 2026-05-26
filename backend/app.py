@@ -23,6 +23,7 @@ from backend.sniffer import BFISniffer
 from backend.model import get_trained_classifier, extract_features_from_window, OOD_LABEL
 from backend.bfld import bfld_layer
 from backend.mqtt_publisher import mqtt_publisher
+from backend.scanner import scanner
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -353,6 +354,16 @@ def update_config(req: ConfigRequest):
         
     sniffer.start(on_packet_captured)
     return get_config()
+
+@app.get("/api/network/scan")
+async def scan_network():
+    """
+    Scans the local subnet using a ping sweep and ARP cache reading.
+    All MAC addresses are passed through the BFLD privacy layer.
+    """
+    logger.info("[API] Initiating local network scan...")
+    devices = scanner.get_connected_devices()
+    return {"devices": devices}
 
 @app.post("/api/simulate/state")
 def update_simulate_state(req: StateRequest):

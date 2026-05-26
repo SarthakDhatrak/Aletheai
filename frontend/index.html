@@ -126,6 +126,11 @@
                         <div class="ota-validation-result" id="otaValidationResult" style="display: none;"></div>
                     </div>
                     <button type="submit" class="action-btn primary-glow-btn">Apply Hardware Configuration</button>
+                    <div class="form-group" style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                        <button type="button" class="styled-btn primary-glow-btn" id="btnScanNetwork" style="width: 100%; display: flex; justify-content: center; align-items: center; padding: 0.8rem; border-radius: 8px; font-weight: bold; background: rgba(0, 219, 139, 0.15); color: var(--emerald-glow); border: 1px solid var(--emerald-glow);">
+                            <span style="margin-right: 0.5rem; font-size: 1.2rem;">🔍</span> Scan Local Wi-Fi Network
+                        </button>
+                    </div>
                 </form>
             </div>
 
@@ -312,7 +317,13 @@
                 
                 <!-- Polar Space Radar Canvas -->
                 <div class="glass-card visualizer-card">
-                    <h2 class="card-title">MIMO Space Radar <span class="card-desc">Givens Phase Coordinates (φ, ψ)</span></h2>
+                    <h2 class="card-title">
+                        Live Radar Map
+                        <span class="card-desc">
+                            Signal Reflections
+                            <span class="tooltip-icon" data-tooltip="This graph visualizes the invisible Wi-Fi waves bouncing around the room. The spirals change shape as a human body moves through the waves.">?</span>
+                        </span>
+                    </h2>
                     <div class="canvas-wrapper">
                         <canvas id="radarCanvas"></canvas>
                     </div>
@@ -375,6 +386,22 @@
             <span class="ood-alert-icon">⚠️</span>
             <span class="ood-alert-text">ADBlock: Out-of-Distribution signal detected — untrained physical event</span>
             <button class="ood-dismiss-btn" onclick="dismissOodAlert()">✕</button>
+        </div>
+    </div>
+
+    <!-- Network Scanner Modal -->
+    <div class="modal-overlay" id="scannerModal">
+        <div class="scanner-modal">
+            <div class="modal-header">
+                <h2>Wi-Fi Device Scanner</h2>
+                <button class="close-btn" id="btnCloseScanner">×</button>
+            </div>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">
+                Scanning your local router for connected smart devices, phones, and laptops. MAC addresses are cryptographically hashed for your privacy.
+            </p>
+            <div id="scannerContent">
+                <!-- Populated dynamically -->
+            </div>
         </div>
     </div>
 
