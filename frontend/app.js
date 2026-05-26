@@ -867,7 +867,7 @@ function initVisualizers() {
     heatmapCtx = heatmapCanvas.getContext("2d");
     
     cirCanvas = document.getElementById("cirCanvas");
-    const ctx = cirCanvas.getContext("2d");
+    cirCtx = cirCanvas.getContext("2d");
 
     // Elements for Network Scanner Modal
     const btnScanNetwork = document.getElementById("btnScanNetwork");
