@@ -3,7 +3,14 @@ import joblib
 import numpy as np
 from typing import Dict, Any, List, Tuple
 from sklearn.ensemble import RandomForestClassifier
-from backend.config import MODEL_SAVE_PATH, WINDOW_SIZE_SEC, SAMPLING_RATE_HZ, MIN_PACKETS_IN_WINDOW
+from backend.config import (
+    MODEL_SAVE_PATH, WINDOW_SIZE_SEC, SAMPLING_RATE_HZ, MIN_PACKETS_IN_WINDOW,
+    FEATURE_DIM, DOMINO_ENABLED, ADBLOCK_ENABLED, FOUNDATION_ENABLED
+)
+
+# OOD Label constant
+OOD_LABEL = "OUT_OF_DISTRIBUTION"
+
 
 def interpolate_packets_to_grid(packets: List[Dict[str, Any]], target_len: int = 20) -> Tuple[np.ndarray, np.ndarray]:
     """
@@ -52,13 +59,30 @@ def interpolate_packets_to_grid(packets: List[Dict[str, Any]], target_len: int =
     return phi_grid, psi_grid
 
 
-def compute_cir_and_dynamic_tap(phi_matrix: np.ndarray, psi_matrix: np.ndarray) -> Tuple[np.ndarray, int, np.ndarray]:
+def compute_cir_and_dynamic_tap(
+    phi_matrix: np.ndarray,
+    psi_matrix: np.ndarray,
+    use_domino: bool = DOMINO_ENABLED
+) -> Tuple[np.ndarray, int, np.ndarray, np.ndarray, float]:
     """
     Computes the Channel Impulse Response (CIR) using IFFT on reconstructed steering vectors,
+    optionally applies Domino fractional delay compensation,
     identifies the dynamic path index (Dylign) with highest variance,
-    and returns the 2D CIR magnitude matrix, the dynamic tap index, and the average CIR profile.
+    and returns the 2D CIR magnitude matrix, the dynamic tap index, the average CIR profile,
+    the average pre-compensated CIR profile, and the Domino SSNR improvement metric.
     """
     T, F = phi_matrix.shape
+    domino_ssnr = 0.0
+
+    # Reconstruct steering coefficient pre-compensation to get ghost profile
+    v21_pre = np.sin(psi_matrix) * np.exp(1j * phi_matrix)
+    cir_pre = np.fft.ifft(v21_pre, n=F, axis=1)
+    avg_profile_pre = np.mean(np.abs(cir_pre), axis=0)
+
+    # Optionally apply Domino compensation before CIR computation
+    if use_domino:
+        from backend.domino import apply_domino_compensation
+        phi_matrix, psi_matrix, domino_ssnr, _ = apply_domino_compensation(phi_matrix, psi_matrix)
     
     # 1. Reconstruct steering coefficient v21 = sin(psi) * exp(j * phi)
     v21 = np.sin(psi_matrix) * np.exp(1j * phi_matrix)
@@ -79,26 +103,32 @@ def compute_cir_and_dynamic_tap(phi_matrix: np.ndarray, psi_matrix: np.ndarray) 
     # 4. Average CIR amplitude profile over the window
     avg_cir_profile = np.mean(cir_abs, axis=0)
     
-    return cir_abs, dynamic_tap, avg_cir_profile
+    return cir_abs, dynamic_tap, avg_cir_profile, avg_profile_pre, domino_ssnr
 
 
-def extract_features_from_window(packets: List[Dict[str, Any]], layout: Tuple[float, float, float] = (4.0, 0.0, 1.5), return_cir: bool = False) -> Any:
+def extract_features_from_window(
+    packets: List[Dict[str, Any]],
+    layout: Tuple[float, float, float] = (4.0, 0.0, 1.5),
+    return_cir: bool = False
+) -> Any:
     """
     Extracts statistical and temporal features from a sliding window of parsed BFI packets.
     First interpolates the packets onto a regular grid to mitigate packet loss,
     applies Hampel filter and phase-unwrapping detrending, projects to delay domain (CIR),
     identifies dynamic peak paths, and extracts features.
+
+    Feature vector is now 24-dimensional (was 23) with the addition of Domino SSNR.
     """
     T = len(packets)
     if T < 2:
-        empty_feat = np.zeros(23)
-        return (empty_feat, {"avg_profile": [], "dynamic_tap": 0}) if return_cir else empty_feat
+        empty_feat = np.zeros(FEATURE_DIM)
+        return (empty_feat, {"avg_profile": [], "avg_profile_pre": [], "dynamic_tap": 0, "domino_ssnr": 0.0}) if return_cir else empty_feat
         
     # Get subcarrier count from first packet
     F = packets[0]["num_subcarriers"]
     if F == 0:
-        empty_feat = np.zeros(23)
-        return (empty_feat, {"avg_profile": [], "dynamic_tap": 0}) if return_cir else empty_feat
+        empty_feat = np.zeros(FEATURE_DIM)
+        return (empty_feat, {"avg_profile": [], "avg_profile_pre": [], "dynamic_tap": 0, "domino_ssnr": 0.0}) if return_cir else empty_feat
         
     # 1. Interpolate packets onto regular 20-sample grid (Cubic/Linear spline)
     phi_grid, psi_grid = interpolate_packets_to_grid(packets, target_len=20)
@@ -111,8 +141,10 @@ def extract_features_from_window(packets: List[Dict[str, Any]], layout: Tuple[fl
     # 3. Phase Unwrap and Detrend (CFO removal)
     phi_detrended = unwrap_and_detrend_phases(phi_filtered)
     
-    # 4. Compute CIR Delay Domain Profiles
-    cir_abs, dynamic_tap, avg_cir_profile = compute_cir_and_dynamic_tap(phi_detrended, psi_filtered)
+    # 4. Compute CIR Delay Domain Profiles (with Domino compensation)
+    cir_abs, dynamic_tap, avg_cir_profile, avg_profile_pre, domino_ssnr = compute_cir_and_dynamic_tap(
+        phi_detrended, psi_filtered
+    )
     
     # 5. Temporal Variance
     phi_var = np.var(phi_detrended, axis=0)
@@ -178,17 +210,19 @@ def extract_features_from_window(packets: List[Dict[str, Any]], layout: Tuple[fl
     d_norm = np.clip(d / 10.0, 0.0, 1.0)
     az_norm = np.clip(az / 180.0, -1.0, 1.0)
     h_norm = np.clip(h / 4.0, 0.0, 1.0)
-        
+
+    # 24-dimensional feature vector (was 23 — added Domino SSNR at index 18)
     features = np.array([
-        mean_phi_var, max_phi_var, std_phi_var,
-        mean_psi_var, max_psi_var, std_psi_var,
-        mean_phi_diff, max_phi_diff,
-        mean_psi_diff, max_psi_diff,
-        phi_range, psi_range,
-        phi_corr, psi_corr,
-        mean_cir_var, dyn_tap_var, dyn_tap_mad, dyn_tap_range,
-        float(20.0), float(F),
-        float(d_norm), float(az_norm), float(h_norm)
+        mean_phi_var, max_phi_var, std_phi_var,          # 0-2
+        mean_psi_var, max_psi_var, std_psi_var,          # 3-5
+        mean_phi_diff, max_phi_diff,                      # 6-7
+        mean_psi_diff, max_psi_diff,                      # 8-9
+        phi_range, psi_range,                             # 10-11
+        phi_corr, psi_corr,                               # 12-13
+        mean_cir_var, dyn_tap_var, dyn_tap_mad, dyn_tap_range,  # 14-17
+        float(domino_ssnr),                               # 18: NEW — Domino SSNR improvement
+        float(20.0), float(F),                            # 19-20: Window size, subcarrier count
+        float(d_norm), float(az_norm), float(h_norm)      # 21-23: Layout priors
     ])
     
     # Clean features of NaN or Inf values
@@ -197,7 +231,9 @@ def extract_features_from_window(packets: List[Dict[str, Any]], layout: Tuple[fl
     if return_cir:
         cir_data = {
             "avg_profile": avg_cir_profile.tolist(),
-            "dynamic_tap": dynamic_tap
+            "avg_profile_pre": avg_profile_pre.tolist(),
+            "dynamic_tap": dynamic_tap,
+            "domino_ssnr": float(domino_ssnr)
         }
         return features, cir_data
     return features
@@ -251,6 +287,7 @@ def generate_synthetic_training_data() -> Tuple[np.ndarray, List[str]]:
     """
     Generates synthetic BFI packet windows using BFISimulator for training purposes,
     randomizing environmental layout parameters to prevent overfitting.
+    Returns (X, y) tuple along with normal-class indicators for ADBlock training.
     """
     from backend.simulator import BFISimulator
     from backend.parser import parse_raw_bfi_payload
@@ -319,21 +356,46 @@ def generate_synthetic_training_data() -> Tuple[np.ndarray, List[str]]:
     return np.array(X), y
 
 
-def get_trained_classifier() -> BFIClassifier:
+def get_trained_classifier() -> Tuple:
     """
     Loads a saved classifier or trains a new one using synthetic data.
+    Also trains and returns an ADBlock instance if enabled.
+
+    Returns:
+        Tuple of (BFIClassifier, ADBlock_or_None)
     """
+    from backend.adblock import ADBlock, train_adblock_from_data
+
     clf = BFIClassifier()
+    adblock = ADBlock(input_dim=FEATURE_DIM) if ADBLOCK_ENABLED else None
+
+    # Try loading pre-trained models
+    loaded = False
     if clf.load():
-        # Validate model shape matches layout priors feature size
-        if hasattr(clf.model, "n_features_in_") and clf.model.n_features_in_ == 23:
+        if hasattr(clf.model, "n_features_in_") and clf.model.n_features_in_ == FEATURE_DIM:
             print("Successfully loaded pre-trained BFI classifier model.")
-            return clf
+            loaded = True
         else:
-            print("Pre-trained model feature dimension mismatch. Retraining...")
-            
-    print("Pre-trained classifier not found. Training model on synthetic data...")
-    X, y = generate_synthetic_training_data()
-    clf.train(X, y)
-    print("BFI ML model training complete and saved.")
-    return clf
+            print(f"Pre-trained model feature dimension mismatch "
+                  f"(got {getattr(clf.model, 'n_features_in_', '?')}, expected {FEATURE_DIM}). Retraining...")
+            loaded = False
+
+    if not loaded:
+        print("Pre-trained classifier not found or outdated. Training model on synthetic data...")
+        X, y = generate_synthetic_training_data()
+        clf.train(X, y)
+        print("BFI ML model training complete and saved.")
+
+        # Train ADBlock on normal-class samples from the same data
+        if ADBLOCK_ENABLED and adblock is not None:
+            adblock = train_adblock_from_data(X, y, input_dim=FEATURE_DIM)
+
+    # Try loading ADBlock if we didn't just train it
+    if ADBLOCK_ENABLED and adblock is not None and not adblock.is_trained:
+        if not adblock.load():
+            print("[ADBlock] No saved ADBlock weights found. Will train on next data generation.")
+            # Force a quick training from synthetic data
+            X, y = generate_synthetic_training_data()
+            adblock = train_adblock_from_data(X, y, input_dim=FEATURE_DIM)
+
+    return clf, adblock

@@ -494,6 +494,15 @@ body {
     animation: orb-ring-expand 3s infinite;
 }
 
+.state-indicator-orb.state-ood {
+    border-color: var(--amber-glow);
+    box-shadow: 0 0 45px rgba(255, 159, 67, 0.6);
+}
+.state-indicator-orb.state-ood .orb-pulsar {
+    border-color: var(--amber-glow);
+    animation: orb-ring-expand 1.2s infinite;
+}
+
 .orb-content {
     display: flex;
     flex-direction: column;
@@ -555,6 +564,7 @@ body {
 .presence-fill { background: var(--cyan-glow); }
 .motion-fill { background: var(--amber-glow); }
 .fall-fill { background: var(--red-glow); }
+.ood-fill { background: var(--amber-glow); }
 
 .prob-value {
     font-size: 0.85rem;
@@ -914,6 +924,61 @@ input:checked + .slider:before {
 @keyframes zoom-in-bounce {
     0% { transform: scale(0.8); opacity: 0; }
     100% { transform: scale(1); opacity: 1; }
+}
+
+/* OOD Alert Overlay */
+.ood-alert-overlay {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.ood-alert-banner {
+    background: rgba(255, 159, 67, 0.15);
+    border: 1px solid var(--amber-glow);
+    box-shadow: 0 4px 20px rgba(255, 159, 67, 0.25);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: var(--text-primary);
+    animation: slide-in-up 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.ood-alert-icon {
+    font-size: 1.3rem;
+}
+
+.ood-alert-text {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.ood-dismiss-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0 0.2rem;
+    transition: var(--transition);
+}
+
+.ood-dismiss-btn:hover {
+    color: var(--red-glow);
+}
+
+@keyframes slide-in-up {
+    0% { transform: translateY(20px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
 }
 
 

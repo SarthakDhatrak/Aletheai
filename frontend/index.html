@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aletheai | Zero-Hack Wi-Fi Sensing & Motion Radar</title>
+    <title>Aletheai v2.0 | Zero-Hack Wi-Fi Sensing & Motion Radar</title>
+    <meta name="description" content="Aletheia v2.0 — Standard-compliant BFI passive Wi-Fi radar with ADBlock anomaly detection, Domino DSP compensation, Shield v2 multi-tap obfuscation, and OTA hardware validation.">
     <!-- Premium Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,7 +18,7 @@
         <div class="logo-area">
             <span class="logo-icon">📡</span>
             <div class="logo-text">
-                <h1>Aletheai</h1>
+                <h1>Aletheai <span class="version-badge">v2.0</span></h1>
                 <p>Standard-Compliant BFI Passive Wi-Fi Radar</p>
             </div>
         </div>
@@ -62,6 +63,18 @@
                         <span class="tel-label">Aletheia-Shield</span>
                         <span class="tel-value" id="statusShield" style="color: var(--text-secondary);">INACTIVE</span>
                     </div>
+                    <div class="tel-item">
+                        <span class="tel-label">Domino SSNR</span>
+                        <span class="tel-value" id="statusSsnr">0.0 dB</span>
+                    </div>
+                    <div class="tel-item">
+                        <span class="tel-label">ADBlock Status</span>
+                        <span class="tel-value" id="statusAdblock" style="color: var(--emerald-glow);">ACTIVE</span>
+                    </div>
+                    <div class="tel-item">
+                        <span class="tel-label">ML Engine</span>
+                        <span class="tel-value" id="statusEngine">Random Forest</span>
+                    </div>
                 </div>
             </div>
 
@@ -74,11 +87,27 @@
                         <select id="modeSelect" class="styled-select">
                             <option value="simulation">High-Fidelity Physics Simulator</option>
                             <option value="live">Passive Sniff (Monitor Mode)</option>
+                            <option value="ota">OTA Hardware Validation</option>
                         </select>
                     </div>
                     <div class="form-group" id="ifaceGroup" style="display: none;">
                         <label for="ifaceInput">Monitor Interface</label>
                         <input type="text" id="ifaceInput" class="styled-input" value="wlan0mon" placeholder="wlan0mon">
+                    </div>
+                    <!-- OTA specific controls -->
+                    <div id="otaGroup" style="display: none;">
+                        <div class="form-group">
+                            <label for="otaChannelInput">Wi-Fi Channel</label>
+                            <input type="number" id="otaChannelInput" class="styled-input" value="36" min="1" max="196">
+                        </div>
+                        <div class="form-group">
+                            <label for="otaTriggerIp">NDP Trigger Target IP</label>
+                            <input type="text" id="otaTriggerIp" class="styled-input" value="" placeholder="192.168.1.1 (optional)">
+                        </div>
+                        <button type="button" class="action-btn secondary-btn" id="otaDetectBtn">🔍 Detect Wi-Fi Adapters</button>
+                        <div class="ota-adapters-list" id="otaAdaptersList" style="display: none;"></div>
+                        <button type="button" class="action-btn secondary-btn" id="otaValidateBtn" style="margin-top: 0.5rem;">🧪 Run OTA Validation</button>
+                        <div class="ota-validation-result" id="otaValidationResult" style="display: none;"></div>
                     </div>
                     <button type="submit" class="action-btn primary-glow-btn">Apply Hardware Configuration</button>
                 </form>
@@ -131,6 +160,17 @@
                             </label>
                         </div>
                         <div class="shield-details-group" id="shieldDetailsGroup" style="display: none; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label for="shieldVersionSelect">Shield Version</label>
+                                <select id="shieldVersionSelect" class="styled-select">
+                                    <option value="1">v1 — Legacy Phase Offset</option>
+                                    <option value="2" selected>v2 — Multi-Tap Convolution</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="shieldTapsGroup">
+                                <label for="shieldTapsSlider">Filter Taps (K): <span id="shieldTapsValue">5</span></label>
+                                <input type="range" id="shieldTapsSlider" class="styled-range" min="3" max="7" value="5" step="1">
+                            </div>
                             <div class="form-group">
                                 <label for="shieldSeedInput">Shared Encryption Seed Key</label>
                                 <input type="number" id="shieldSeedInput" class="styled-input" value="42">
@@ -196,7 +236,7 @@
             <div class="glass-card state-display-card">
                 <div class="state-header">
                     <h2>Live Activity Classification</h2>
-                    <span class="model-badge">RF Inference Active</span>
+                    <span class="model-badge" id="modelBadge">RF Inference Active</span>
                 </div>
                 
                 <div class="state-result-wrapper">
@@ -238,6 +278,14 @@
                                 <div class="prob-bar-fill fall-fill" id="prob_FALLING" style="width: 0%"></div>
                             </div>
                             <span class="prob-value" id="val_FALLING">0%</span>
+                        </div>
+                        <!-- ADBlock OOD Indicator -->
+                        <div class="prob-row ood-row" id="oodRow">
+                            <span class="prob-label">⚠ Out-of-Distribution (OOD)</span>
+                            <div class="prob-bar-container">
+                                <div class="prob-bar-fill ood-fill" id="prob_OOD" style="width: 0%"></div>
+                            </div>
+                            <span class="prob-value" id="val_OOD">0%</span>
                         </div>
                     </div>
                 </div>
@@ -281,7 +329,7 @@
                 <div class="logs-container" id="eventLogs">
                     <div class="log-row info">
                         <span class="log-time">[System Init]</span>
-                        <span class="log-text">Aletheai passive sensor initiated. Ready for connection.</span>
+                        <span class="log-text">Aletheai v2.0 passive sensor initiated. ADBlock + Domino + Shield v2 online.</span>
                     </div>
                 </div>
             </div>
@@ -290,7 +338,7 @@
     </main>
 
     <footer class="app-footer">
-        <p>Aletheai Wi-Fi Radar • Privacy-Preserving RF Sensing System</p>
+        <p>Aletheai v2.0 Wi-Fi Radar • ADBlock • Domino DSP • Shield v2 • AM-FM Foundation • OTA Validated</p>
     </footer>
 
     <!-- Persistent Fall Alarm Overlay -->
@@ -302,6 +350,15 @@
             <div class="alarm-actions">
                 <button class="action-btn dismiss-btn" onclick="dismissFallAlarm()">Dismiss & Reset Sensor</button>
             </div>
+        </div>
+    </div>
+
+    <!-- OOD Alert Overlay -->
+    <div id="oodAlertOverlay" class="ood-alert-overlay" style="display: none;">
+        <div class="ood-alert-banner">
+            <span class="ood-alert-icon">⚠️</span>
+            <span class="ood-alert-text">ADBlock: Out-of-Distribution signal detected — untrained physical event</span>
+            <button class="ood-dismiss-btn" onclick="dismissOodAlert()">✕</button>
         </div>
     </div>
 

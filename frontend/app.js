@@ -75,6 +75,7 @@ function updateConfigUI(config) {
     const modeSelect = document.getElementById("modeSelect");
     const ifaceInput = document.getElementById("ifaceInput");
     const ifaceGroup = document.getElementById("ifaceGroup");
+    const otaGroup = document.getElementById("otaGroup");
     const statusMode = document.getElementById("statusMode");
     
     modeSelect.value = config.mode;
@@ -82,11 +83,19 @@ function updateConfigUI(config) {
     
     if (config.mode === "live") {
         ifaceGroup.style.display = "flex";
+        otaGroup.style.display = "none";
         statusMode.innerText = `LIVE: ${config.interface}`;
+        document.getElementById("simControllerCard").style.opacity = "0.5";
+        document.getElementById("simControllerCard").style.pointerEvents = "none";
+    } else if (config.mode === "ota") {
+        ifaceGroup.style.display = "flex";
+        otaGroup.style.display = "block";
+        statusMode.innerText = `OTA: ${config.interface} (Ch ${config.ota_channel || 36})`;
         document.getElementById("simControllerCard").style.opacity = "0.5";
         document.getElementById("simControllerCard").style.pointerEvents = "none";
     } else {
         ifaceGroup.style.display = "none";
+        otaGroup.style.display = "none";
         statusMode.innerText = "SIMULATED";
         document.getElementById("simControllerCard").style.opacity = "1";
         document.getElementById("simControllerCard").style.pointerEvents = "auto";
@@ -136,11 +145,12 @@ function updateConfigUI(config) {
             statusIcon.innerText = "🔒";
             toggleDesc.innerText = "BFI Scrambling Enabled";
             
+            const verStr = config.shield_version === 2 ? `v2 FIR (${config.shield_num_taps} Taps)` : "v1 Phase";
             if (config.shield_authorized) {
-                statusShield.innerText = "ACTIVE (AUTH)";
+                statusShield.innerText = `ACTIVE (${verStr} AUTH)`;
                 statusShield.style.color = "var(--emerald-glow)";
             } else {
-                statusShield.innerText = "ACTIVE (SCRAMBLED)";
+                statusShield.innerText = `ACTIVE (${verStr} SCRAMBLED)`;
                 statusShield.style.color = "var(--red-glow)";
             }
         } else {
@@ -153,11 +163,46 @@ function updateConfigUI(config) {
         }
     }
     
+    if (config.shield_version !== undefined) {
+        document.getElementById("shieldVersionSelect").value = config.shield_version;
+        const tapsGroup = document.getElementById("shieldTapsGroup");
+        if (tapsGroup) {
+            tapsGroup.style.display = parseInt(config.shield_version) === 2 ? "block" : "none";
+        }
+    }
+    if (config.shield_num_taps !== undefined) {
+        document.getElementById("shieldTapsSlider").value = config.shield_num_taps;
+        document.getElementById("shieldTapsValue").innerText = config.shield_num_taps;
+    }
     if (config.shield_seed !== undefined) {
         document.getElementById("shieldSeedInput").value = config.shield_seed;
     }
     if (config.shield_authorized !== undefined) {
         document.getElementById("authSelect").value = config.shield_authorized ? "authorized" : "unauthorized";
+    }
+    
+    // OTA configurations
+    if (config.ota_channel !== undefined) {
+        document.getElementById("otaChannelInput").value = config.ota_channel;
+    }
+    if (config.ota_trigger_ip !== undefined) {
+        document.getElementById("otaTriggerIp").value = config.ota_trigger_ip || "";
+    }
+    
+    // Model engine badge
+    const modelBadge = document.getElementById("modelBadge");
+    if (modelBadge) {
+        if (config.foundation_enabled) {
+            modelBadge.innerText = "AM-FM Foundation Encoder";
+            modelBadge.style.borderColor = "var(--emerald-glow-dark)";
+            modelBadge.style.color = "var(--emerald-glow)";
+            document.getElementById("statusEngine").innerText = "Foundation Model";
+        } else {
+            modelBadge.innerText = "RF Inference Active";
+            modelBadge.style.borderColor = "var(--cyan-glow-dark)";
+            modelBadge.style.color = "var(--cyan-glow)";
+            document.getElementById("statusEngine").innerText = "Random Forest";
+        }
     }
 }
 
@@ -180,12 +225,19 @@ function setupEventListeners() {
     configForm.addEventListener("submit", async () => {
         const mode = document.getElementById("modeSelect").value;
         const interfaceName = document.getElementById("ifaceInput").value;
+        const ota_channel = parseInt(document.getElementById("otaChannelInput").value, 10) || 36;
+        const ota_trigger_ip = document.getElementById("otaTriggerIp").value.trim() || null;
         
         try {
             const res = await fetch("/api/config", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ mode, interface: interfaceName })
+                body: JSON.stringify({ 
+                    mode, 
+                    interface: interfaceName,
+                    ota_channel,
+                    ota_trigger_ip
+                })
             });
             const data = await res.json();
             updateConfigUI(data);
@@ -198,13 +250,136 @@ function setupEventListeners() {
     // Sniff mode selector change (show/hide interface input)
     const modeSelect = document.getElementById("modeSelect");
     const ifaceGroup = document.getElementById("ifaceGroup");
+    const otaGroup = document.getElementById("otaGroup");
     modeSelect.addEventListener("change", () => {
         if (modeSelect.value === "live") {
             ifaceGroup.style.display = "flex";
+            otaGroup.style.display = "none";
+        } else if (modeSelect.value === "ota") {
+            ifaceGroup.style.display = "flex";
+            otaGroup.style.display = "block";
         } else {
             ifaceGroup.style.display = "none";
+            otaGroup.style.display = "none";
         }
     });
+
+    // Detect Wi-Fi adapters
+    const otaDetectBtn = document.getElementById("otaDetectBtn");
+    const otaAdaptersList = document.getElementById("otaAdaptersList");
+    if (otaDetectBtn && otaAdaptersList) {
+        otaDetectBtn.addEventListener("click", async () => {
+            otaDetectBtn.disabled = true;
+            otaDetectBtn.innerText = "Searching...";
+            try {
+                const res = await fetch("/api/ota/adapters");
+                const data = await res.json();
+                otaAdaptersList.innerHTML = "";
+                
+                if (!data.adapters || data.adapters.length === 0) {
+                    otaAdaptersList.innerHTML = `<div class="adapter-item" style="color: var(--red-glow); font-size: 0.8rem; padding: 0.5rem;">No Wi-Fi adapters detected. Make sure iw/netsh is available.</div>`;
+                } else {
+                    data.adapters.forEach(adapter => {
+                        const item = document.createElement("div");
+                        item.className = "adapter-item";
+                        item.style.display = "flex";
+                        item.style.justifyContent = "space-between";
+                        item.style.alignItems = "center";
+                        item.style.margin = "0.5rem 0";
+                        item.style.padding = "0.5rem";
+                        item.style.background = "rgba(255,255,255,0.03)";
+                        item.style.borderRadius = "4px";
+                        
+                        item.innerHTML = `
+                            <div>
+                                <span style="font-weight:600; color: var(--cyan-glow); font-size: 0.8rem;">${adapter.interface}</span> 
+                                <span style="font-size:0.75rem; color: var(--text-secondary);">(${adapter.type || 'unknown'}, ${adapter.mac || 'no mac'})</span>
+                            </div>
+                            <button type="button" class="action-btn select-iface-btn" data-iface="${adapter.interface}" style="width: auto; padding: 0.25rem 0.5rem; font-size: 0.75rem; background: var(--card-border);">Use</button>
+                        `;
+                        otaAdaptersList.appendChild(item);
+                    });
+                    
+                    // Add listeners to select button
+                    otaAdaptersList.querySelectorAll(".select-iface-btn").forEach(btn => {
+                        btn.addEventListener("click", () => {
+                            document.getElementById("ifaceInput").value = btn.getAttribute("data-iface");
+                            appendLog("OTA", `Selected adapter: ${btn.getAttribute("data-iface")}`, "info");
+                        });
+                    });
+                }
+                otaAdaptersList.style.display = "block";
+            } catch (err) {
+                console.error("Detecting adapters failed", err);
+            } finally {
+                otaDetectBtn.disabled = false;
+                otaDetectBtn.innerText = "🔍 Detect Wi-Fi Adapters";
+            }
+        });
+    }
+
+    // Run OTA validation suite
+    const otaValidateBtn = document.getElementById("otaValidateBtn");
+    const otaValidationResult = document.getElementById("otaValidationResult");
+    if (otaValidateBtn && otaValidationResult) {
+        otaValidateBtn.addEventListener("click", async () => {
+            const interfaceName = document.getElementById("ifaceInput").value;
+            const channel = parseInt(document.getElementById("otaChannelInput").value, 10) || 36;
+            const trigger_ip = document.getElementById("otaTriggerIp").value.trim() || null;
+            
+            if (!interfaceName) {
+                alert("Please select or enter a monitor interface first.");
+                return;
+            }
+            
+            otaValidateBtn.disabled = true;
+            otaValidateBtn.innerText = "Running Validation (10s)...";
+            otaValidationResult.innerHTML = `<span style="color: var(--amber-glow); font-family: var(--font-mono); font-size: 0.8rem;">Starting over-the-air capture & validation...</span>`;
+            otaValidationResult.style.display = "block";
+            
+            try {
+                const res = await fetch("/api/ota/validate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        interface: interfaceName,
+                        duration: 10.0,
+                        channel,
+                        trigger_ip
+                    })
+                });
+                const data = await res.json();
+                
+                if (data.status === "completed") {
+                    otaValidationResult.innerHTML = `
+                        <div style="font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.4; color: var(--emerald-glow);">
+                            <strong>OTA validation success!</strong><br>
+                            • Total packets: ${data.frames_captured}<br>
+                            • BFI frames parsed: ${data.bfi_frames_parsed}<br>
+                            • Parse success: ${(data.parse_success_rate * 100).toFixed(1)}%<br>
+                            • Clients found: ${data.unique_clients.join(", ") || 'none'}
+                        </div>
+                    `;
+                    appendLog("OTA Validation", `Validation completed successfully. Parsed ${data.bfi_frames_parsed} BFI frames.`, "success");
+                } else {
+                    const errors = data.errors ? data.errors.join("; ") : "Unknown error";
+                    otaValidationResult.innerHTML = `
+                        <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--red-glow); line-height: 1.4;">
+                            <strong>Validation failed:</strong><br>
+                            ${errors}
+                        </div>
+                    `;
+                    appendLog("OTA Validation", `Validation failed: ${errors}`, "warn");
+                }
+            } catch (err) {
+                otaValidationResult.innerHTML = `<span style="color: var(--red-glow); font-size: 0.8rem;">Error calling validation API.</span>`;
+                appendLog("OTA Validation", "Failed to contact validation API endpoint.", "warn");
+            } finally {
+                otaValidateBtn.disabled = false;
+                otaValidateBtn.innerText = "🧪 Run OTA Validation";
+            }
+        });
+    }
     
     // Simulation scenario injector buttons
     const simButtons = document.querySelectorAll(".sim-btn");
@@ -279,11 +454,31 @@ function setupEventListeners() {
         }
     });
 
+    // Shield version selector change
+    const shieldVersionSelect = document.getElementById("shieldVersionSelect");
+    const shieldTapsGroup = document.getElementById("shieldTapsGroup");
+    if (shieldVersionSelect && shieldTapsGroup) {
+        shieldVersionSelect.addEventListener("change", () => {
+            shieldTapsGroup.style.display = parseInt(shieldVersionSelect.value) === 2 ? "block" : "none";
+        });
+    }
+
+    // Shield taps slider change
+    const shieldTapsSlider = document.getElementById("shieldTapsSlider");
+    const shieldTapsValue = document.getElementById("shieldTapsValue");
+    if (shieldTapsSlider && shieldTapsValue) {
+        shieldTapsSlider.addEventListener("input", () => {
+            shieldTapsValue.innerText = shieldTapsSlider.value;
+        });
+    }
+
     // Security form submission
     const securityForm = document.getElementById("securityForm");
     securityForm.addEventListener("submit", async () => {
         const format = document.getElementById("formatSelect").value;
         const active = document.getElementById("shieldToggle").checked;
+        const version = parseInt(document.getElementById("shieldVersionSelect").value, 10) || 2;
+        const num_taps = parseInt(document.getElementById("shieldTapsSlider").value, 10) || 5;
         const seed = parseInt(document.getElementById("shieldSeedInput").value, 10);
         const auth = document.getElementById("authSelect").value === "authorized";
         
@@ -300,7 +495,9 @@ function setupEventListeners() {
                     bf_format: format,
                     shield_active: active,
                     shield_seed: seed,
-                    shield_authorized: auth
+                    shield_authorized: auth,
+                    shield_version: version,
+                    shield_num_taps: num_taps
                 })
             });
             const data = await res.json();
@@ -467,6 +664,13 @@ function dismissFallAlarm() {
       });
 }
 
+window.dismissOodAlert = function() {
+    const overlay = document.getElementById("oodAlertOverlay");
+    if (overlay) {
+        overlay.style.display = "none";
+    }
+};
+
 // Process incoming WebSocket packet data
 function processTelemetry(data) {
     // 1. Update Telemetry Summary
@@ -490,16 +694,63 @@ function processTelemetry(data) {
     if (data.shield_active !== undefined) {
         const statusShield = document.getElementById("statusShield");
         if (data.shield_active) {
+            const verStr = data.shield_version === 2 ? `v2 (${data.shield_num_taps} Taps)` : "v1";
             if (data.shield_authorized) {
-                statusShield.innerText = "ACTIVE (AUTH)";
+                statusShield.innerText = `ACTIVE (${verStr}-AUTH)`;
                 statusShield.style.color = "var(--emerald-glow)";
             } else {
-                statusShield.innerText = "ACTIVE (SCRAMBLED)";
+                statusShield.innerText = `ACTIVE (${verStr}-SCRAMBLED)`;
                 statusShield.style.color = "var(--red-glow)";
             }
         } else {
             statusShield.innerText = "INACTIVE";
             statusShield.style.color = "var(--text-secondary)";
+        }
+    }
+
+    // Update Domino SSNR
+    const statusSsnr = document.getElementById("statusSsnr");
+    if (statusSsnr) {
+        statusSsnr.innerText = `${data.domino_ssnr.toFixed(2)} dB`;
+        if (data.domino_ssnr > 3.0) {
+            statusSsnr.style.color = "var(--emerald-glow)";
+        } else if (data.domino_ssnr > 0.0) {
+            statusSsnr.style.color = "var(--cyan-glow)";
+        } else {
+            statusSsnr.style.color = "var(--text-secondary)";
+        }
+    }
+
+    // Update ADBlock telemetry
+    const statusAdblock = document.getElementById("statusAdblock");
+    if (statusAdblock) {
+        if (data.is_ood) {
+            statusAdblock.innerText = "⚠️ ANOMALY DETECTED";
+            statusAdblock.style.color = "var(--red-glow)";
+            // Show OOD Alert Overlay
+            const overlay = document.getElementById("oodAlertOverlay");
+            if (overlay) {
+                overlay.style.display = "flex";
+            }
+        } else {
+            statusAdblock.innerText = "ACTIVE";
+            statusAdblock.style.color = "var(--emerald-glow)";
+        }
+    }
+
+    // Update OOD probability bar
+    const oodBar = document.getElementById("prob_OOD");
+    const oodVal = document.getElementById("val_OOD");
+    if (oodBar && oodVal) {
+        const ratio = data.ood_threshold > 0 ? (data.ood_score / data.ood_threshold) : 0;
+        const percent = Math.min(100, Math.round(ratio * 100));
+        oodBar.style.width = `${percent}%`;
+        oodVal.innerText = `${percent}%`;
+        
+        if (data.is_ood) {
+            oodBar.style.background = "var(--red-glow)";
+        } else {
+            oodBar.style.background = "var(--amber-glow)";
         }
     }
 
@@ -538,13 +789,13 @@ function processTelemetry(data) {
     }
     
     // 4. Update Space Radar Visualizer
-    drawSpaceRadar(data.angles);
+    drawSpaceRadar(data.angles, data.shield_active && !data.shield_authorized);
     
     // 5. Update Heatmap Buffer
     computeHeatmapSlice(data.angles);
     
     // 6. Update Delay-Domain CIR Visualizer
-    drawCIRProfile(data.cir_profile, data.cir_dynamic_tap);
+    drawCIRProfile(data.cir_profile, data.cir_profile_pre, data.cir_dynamic_tap);
 }
 
 // Update the main Activity Card & Indicator Orb styles
@@ -571,6 +822,10 @@ function updateStateDisplay(state) {
         predText.innerText = "FALL DETECTED";
         appendLog("ALERT", "🚨 CRITICAL: High-impact fall event signature matched!", "danger");
         triggerFallAlarm();
+    } else if (state === "OUT_OF_DISTRIBUTION") {
+        orb.classList.add("state-ood");
+        predText.innerText = "ANOMALY DETECTED";
+        appendLog("ADBlock", "⚠️ ADBlock: Out-of-Distribution anomaly detected (untrained physical event).", "warn");
     } else if (state === "UNKNOWN") {
         orb.classList.add("state-unknown");
         predText.innerText = "SCRAMBLED / UNKNOWN";
@@ -651,7 +906,7 @@ function drawSpaceRadarGrid() {
 }
 
 // Draw live coordinates on Radar Canvas
-function drawSpaceRadar(angles) {
+function drawSpaceRadar(angles, isScrambled = false) {
     if (!angles || !angles.phi || angles.phi.length === 0) return;
     
     drawSpaceRadarGrid();
@@ -668,11 +923,17 @@ function drawSpaceRadar(angles) {
     radarCtx.beginPath();
     
     for (let i = 0; i < count; i++) {
-        const phi = angles.phi[i];
-        const psi = angles.psi[i];
+        let phi = angles.phi[i];
+        let psi = angles.psi[i];
+        
+        // If scrambled, add random jitter to emphasize scrambled state
+        if (isScrambled) {
+            phi += (Math.random() - 0.5) * 0.3;
+            psi += (Math.random() - 0.5) * 0.1;
+        }
         
         // Scale psi (0 to pi/2) into radius (0 to R)
-        const radius = R * (psi / (Math.PI / 2));
+        const radius = R * (Math.max(0, Math.min(Math.PI / 2, psi)) / (Math.PI / 2));
         
         // Convert polar coordinates to Cartesian
         const x = cx + radius * Math.cos(phi);
@@ -685,16 +946,25 @@ function drawSpaceRadar(angles) {
         }
     }
     
-    // Close path and stroke with a glowing neon cyan-to-purple gradient
+    // Close path and stroke with a glowing neon cyan-to-purple gradient (or red/orange if scrambled)
     const gradient = radarCtx.createRadialGradient(cx, cy, 5, cx, cy, R);
-    gradient.addColorStop(0, "#00f2fe");
-    gradient.addColorStop(0.5, "#4facfe");
-    gradient.addColorStop(1, "#b100ff");
+    if (isScrambled) {
+        gradient.addColorStop(0, "rgba(255, 63, 63, 0.8)");
+        gradient.addColorStop(1, "rgba(179, 22, 22, 0.4)");
+        radarCtx.strokeStyle = gradient;
+        radarCtx.lineWidth = 1.5;
+        radarCtx.shadowBlur = 15;
+        radarCtx.shadowColor = "rgba(255, 63, 63, 0.5)";
+    } else {
+        gradient.addColorStop(0, "#00f2fe");
+        gradient.addColorStop(0.5, "#4facfe");
+        gradient.addColorStop(1, "#b100ff");
+        radarCtx.strokeStyle = gradient;
+        radarCtx.lineWidth = 2.5;
+        radarCtx.shadowBlur = 12;
+        radarCtx.shadowColor = "rgba(0, 242, 254, 0.4)";
+    }
     
-    radarCtx.strokeStyle = gradient;
-    radarCtx.lineWidth = 2.5;
-    radarCtx.shadowBlur = 12;
-    radarCtx.shadowColor = "rgba(0, 242, 254, 0.4)";
     radarCtx.stroke();
     
     // Reset shadow for subsequent drawings
@@ -702,16 +972,39 @@ function drawSpaceRadar(angles) {
     
     // Draw discrete subcarrier particles on the loop
     for (let i = 0; i < count; i++) {
-        const phi = angles.phi[i];
-        const psi = angles.psi[i];
-        const radius = R * (psi / (Math.PI / 2));
+        let phi = angles.phi[i];
+        let psi = angles.psi[i];
+        
+        if (isScrambled) {
+            phi += (Math.random() - 0.5) * 0.3;
+            psi += (Math.random() - 0.5) * 0.1;
+        }
+        
+        const radius = R * (Math.max(0, Math.min(Math.PI / 2, psi)) / (Math.PI / 2));
         const x = cx + radius * Math.cos(phi);
         const y = cy - radius * Math.sin(phi);
         
         radarCtx.beginPath();
-        radarCtx.arc(x, y, 4, 0, 2 * Math.PI);
-        radarCtx.fillStyle = i % 2 === 0 ? "#00f2fe" : "#ff9f43";
+        radarCtx.arc(x, y, isScrambled ? 3 : 4, 0, 2 * Math.PI);
+        if (isScrambled) {
+            radarCtx.fillStyle = Math.random() > 0.5 ? "var(--red-glow)" : "rgba(255, 255, 255, 0.25)";
+        } else {
+            radarCtx.fillStyle = i % 2 === 0 ? "#00f2fe" : "#ff9f43";
+        }
         radarCtx.fill();
+    }
+    
+    // Add extra scanning static overlay if scrambled
+    if (isScrambled) {
+        radarCtx.strokeStyle = "rgba(255, 63, 63, 0.1)";
+        radarCtx.lineWidth = 1;
+        for (let j = 0; j < 4; j++) {
+            const rx = cx + (Math.random() - 0.5) * R * 2;
+            radarCtx.beginPath();
+            radarCtx.moveTo(rx, cy - R);
+            radarCtx.lineTo(rx, cy + R);
+            radarCtx.stroke();
+        }
     }
 }
 
@@ -810,7 +1103,7 @@ function drawHeatmap() {
 }
 
 // Draw the delay-domain Channel Impulse Response (CIR)
-function drawCIRProfile(profile, dynamicTap) {
+function drawCIRProfile(profile, profilePre, dynamicTap) {
     if (!profile || profile.length === 0) return;
     
     const W = cirCanvas.width;
@@ -831,10 +1124,23 @@ function drawCIRProfile(profile, dynamicTap) {
         cirCtx.stroke();
     }
     
-    // Find the max value for scaling
-    const maxVal = Math.max(...profile, 0.1);
+    // Find the max value for scaling across both profiles
+    const maxVal = Math.max(...profile, ...(profilePre || []), 0.1);
     
-    // Draw bars
+    // 1. Draw "pre-Domino" ghost profile (faded) if available
+    if (profilePre && profilePre.length === count) {
+        for (let i = 0; i < count; i++) {
+            const val = profilePre[i];
+            const barHeight = H * (val / maxVal) * 0.82;
+            const x = i * barWidth;
+            const y = H - barHeight;
+            
+            cirCtx.fillStyle = "rgba(142, 155, 180, 0.18)";
+            cirCtx.fillRect(x + 1, y, Math.max(1, barWidth - 2), barHeight);
+        }
+    }
+    
+    // 2. Draw corrected "post-Domino" bars
     for (let i = 0; i < count; i++) {
         const val = profile[i];
         const barHeight = H * (val / maxVal) * 0.82; // leave some headroom for label

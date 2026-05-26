@@ -3,7 +3,10 @@ import math
 import random
 import numpy as np
 from typing import Dict, Any, List, Tuple
-from backend.config import NUM_SUBCARRIERS, NC, NR, SIM_NOISE_FLOOR
+from backend.config import (
+    NUM_SUBCARRIERS, NC, NR, SIM_NOISE_FLOOR,
+    SHIELD_VERSION, SHIELD_NUM_TAPS, SHIELD_TAP_SPACING, CHANNEL_BANDWIDTH_HZ
+)
 
 class LsbBitWriter:
     """
@@ -216,10 +219,19 @@ class BFISimulator:
                 
         return angles
 
-    def generate_packet_payload(self, bf_format: str = "vht", shield_active: bool = False, shield_seed: int = 42) -> bytes:
+    def generate_packet_payload(
+        self,
+        bf_format: str = "vht",
+        shield_active: bool = False,
+        shield_seed: int = 42,
+        shield_version: int = SHIELD_VERSION,
+        shield_num_taps: int = SHIELD_NUM_TAPS
+    ) -> bytes:
         """
         Generates a standard-compliant VHT (21), HE (26), or 802.11bf SENS (33) Action frame payload
         containing the simulated BFI data. Applies Aletheia-Shield obfuscation if active.
+
+        Supports both Shield v1 (legacy phase offset) and Shield v2 (multi-tap convolution).
         """
         # 1. Action frame headers
         # Category: VHT (21), HE (26), or SENS (33)
@@ -248,14 +260,29 @@ class BFISimulator:
         
         # Apply obfuscation if active
         if shield_active:
-            from backend.parser import get_obfuscation_noise
-            phi_noise, psi_noise = get_obfuscation_noise(token, shield_seed, len(angles))
-            obfuscated_angles = []
-            for i, (phi, psi) in enumerate(angles):
-                phi_obf = (phi + phi_noise[i]) % (2 * math.pi)
-                psi_obf = (psi + psi_noise[i]) % (math.pi / 2)
-                obfuscated_angles.append((phi_obf, psi_obf))
-            angles = obfuscated_angles
+            if shield_version >= 2:
+                # Shield v2: Multi-tap convolution obfuscation
+                from backend.parser import generate_multitap_filter, apply_shield_v2_obfuscation
+                G = generate_multitap_filter(
+                    token, shield_seed, len(angles),
+                    num_taps=shield_num_taps,
+                    tap_spacing=SHIELD_TAP_SPACING,
+                    bandwidth=CHANNEL_BANDWIDTH_HZ
+                )
+                phi_arr = np.array([a[0] for a in angles])
+                psi_arr = np.array([a[1] for a in angles])
+                phi_obf, psi_obf = apply_shield_v2_obfuscation(phi_arr, psi_arr, G)
+                angles = list(zip(phi_obf.tolist(), psi_obf.tolist()))
+            else:
+                # Shield v1: Legacy phase offset
+                from backend.parser import get_v1_obfuscation_noise
+                phi_noise, psi_noise = get_v1_obfuscation_noise(token, shield_seed, len(angles))
+                obfuscated_angles = []
+                for i, (phi, psi) in enumerate(angles):
+                    phi_obf = (phi + phi_noise[i]) % (2 * math.pi)
+                    psi_obf = (psi + psi_noise[i]) % (math.pi / 2)
+                    obfuscated_angles.append((phi_obf, psi_obf))
+                angles = obfuscated_angles
         
         writer = LsbBitWriter()
         for phi, psi in angles:
