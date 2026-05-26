@@ -21,6 +21,8 @@ from backend.parser import (
 )
 from backend.sniffer import BFISniffer
 from backend.model import get_trained_classifier, extract_features_from_window, OOD_LABEL
+from backend.bfld import bfld_layer
+from backend.mqtt_publisher import mqtt_publisher
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -155,6 +157,12 @@ def on_packet_captured(parsed_pkt: Dict[str, Any]):
                         psi_desc = (psi_val - psi_noise[i]) % (np.pi / 2)
                         subcarrier["psi"] = [psi_desc]
 
+    # Apply BFLD Privacy Module (Identity Leakage Prevention)
+    if parsed_pkt.get("src"):
+        parsed_pkt["src"] = bfld_layer.anonymize_mac(parsed_pkt["src"])
+    if parsed_pkt.get("dst"):
+        parsed_pkt["dst"] = bfld_layer.anonymize_mac(parsed_pkt["dst"])
+
     # 2. Update sliding window (thread-safe)
     with window_lock:
         packet_window.append(parsed_pkt)
@@ -249,6 +257,7 @@ def on_packet_captured(parsed_pkt: Dict[str, Any]):
         "ood_threshold": round(ood_threshold, 6),
         "mode": sniffer.mode,
         "sim_state": sniffer.simulator.state,
+        "mqtt_connected": mqtt_publisher.connected,
         "is_recording": is_recording,
         "recording_label": recording_label,
         "recording_count": len(recording_buffer),

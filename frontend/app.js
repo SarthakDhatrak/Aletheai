@@ -678,6 +678,18 @@ function processTelemetry(data) {
     document.getElementById("statusSnr").innerText = `${data.snr} dBm`;
     document.getElementById("statusCarriers").innerText = data.num_subcarriers;
     
+    // MQTT Status Update
+    const statusMqtt = document.getElementById("statusMqtt");
+    if (data.mqtt_connected !== undefined) {
+        if (data.mqtt_connected) {
+            statusMqtt.innerText = "ACTIVE (Home Assistant)";
+            statusMqtt.style.color = "var(--emerald-glow)";
+        } else {
+            statusMqtt.innerText = "NOT CONNECTED";
+            statusMqtt.style.color = "var(--danger)";
+        }
+    }
+
     // SNR progress bar filling
     const snrPercent = Math.min(100, Math.max(0, (data.snr + 100) * 1.5));
     document.getElementById("snrFill").style.width = `${snrPercent}%`;
