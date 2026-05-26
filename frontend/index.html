@@ -37,11 +37,14 @@
                 <h2 class="card-title">System Status</h2>
                 <div class="telemetry-grid">
                     <div class="tel-item">
-                        <span class="tel-label">Interface Mode</span>
+                        <span class="tel-label">Radar Connection</span>
                         <span class="tel-value" id="statusMode">SIMULATED</span>
                     </div>
                     <div class="tel-item">
-                        <span class="tel-label">Source Client (BFLD Anonymized)</span>
+                        <span class="tel-label">
+                            Monitored Device (Privacy Guarded)
+                            <span class="tooltip-icon" data-tooltip="MAC addresses are cryptographically scrambled daily to guarantee your identity cannot be tracked.">?</span>
+                        </span>
                         <span class="tel-value" id="statusSrc">00:00:00:00:00:00</span>
                     </div>
                     <div class="tel-item">
@@ -60,15 +63,24 @@
                         <span class="tel-value" id="statusStandard">VHT (802.11ac)</span>
                     </div>
                     <div class="tel-item">
-                        <span class="tel-label">Aletheia-Shield</span>
+                        <span class="tel-label">
+                            Anti-Spy Scrambler (Shield)
+                            <span class="tooltip-icon" data-tooltip="Encrypts the Wi-Fi waves bouncing off your body so hackers outside your house cannot see you.">?</span>
+                        </span>
                         <span class="tel-value" id="statusShield" style="color: var(--text-secondary);">INACTIVE</span>
                     </div>
                     <div class="tel-item">
-                        <span class="tel-label">Domino SSNR</span>
+                        <span class="tel-label">
+                            Signal Clarity (Domino DSP)
+                            <span class="tooltip-icon" data-tooltip="Fixes cheap Wi-Fi hardware timing glitches to provide a crystal clear radar picture.">?</span>
+                        </span>
                         <span class="tel-value" id="statusSsnr">0.0 dB</span>
                     </div>
                     <div class="tel-item">
-                        <span class="tel-label">ADBlock Status</span>
+                        <span class="tel-label">
+                            False Alarm Guard (ADBlock)
+                            <span class="tooltip-icon" data-tooltip="Filters out weird, untrained events (like a dog jumping) to prevent fake fall alerts.">?</span>
+                        </span>
                         <span class="tel-value" id="statusAdblock" style="color: var(--emerald-glow);">ACTIVE</span>
                     </div>
                     <div class="tel-item">
