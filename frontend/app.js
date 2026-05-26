@@ -228,6 +228,13 @@ function setupEventListeners() {
         const ota_channel = parseInt(document.getElementById("otaChannelInput").value, 10) || 36;
         const ota_trigger_ip = document.getElementById("otaTriggerIp").value.trim() || null;
         
+        // Request Notification Permission on user interaction
+        if ("Notification" in window) {
+            if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+                Notification.requestPermission();
+            }
+        }
+        
         try {
             const res = await fetch("/api/config", {
                 method: "POST",
@@ -781,19 +788,11 @@ function processTelemetry(data) {
         }
     }
     
-    // Request Notification Permission
-    if ("Notification" in window) {
-        if (Notification.permission !== "granted" && Notification.permission !== "denied") {
-            Notification.requestPermission();
-        }
-    }
-
     // If prediction state changes, update indicator and append logs
     if (currentPrediction !== lastState) {
         updateStateDisplay(currentPrediction);
         lastState = currentPrediction;
     }
-    
     // 3. Update Probabilities list
     if (data.probabilities) {
         for (const [cls, prob] of Object.entries(data.probabilities)) {
@@ -957,10 +956,10 @@ function drawSpaceRadar(angles, isScrambled = false) {
             psi += (Math.random() - 0.5) * 0.1;
         }
         
-        // Scale psi. Givens angles (psi) are typically small (0.0 to 0.5 rads).
-        // Scaling by 0.5 instead of PI/2 pushes the shapes out from the center so they are clearly visible.
-        const psiBounded = Math.max(0, Math.min(0.6, psi));
-        const radius = R * (psiBounded / 0.6);
+        // Scale psi. Givens angles (psi) are in [0, pi/2].
+        // We use a square root curve to expand small angles outward for high visibility without hard clamping.
+        const normalizedPsi = Math.max(0, Math.min(Math.PI / 2, psi)) / (Math.PI / 2);
+        const radius = R * Math.pow(normalizedPsi, 0.4);
         
         // Convert polar coordinates to Cartesian
         const x = cx + radius * Math.cos(phi);
