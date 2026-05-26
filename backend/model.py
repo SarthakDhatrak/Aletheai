@@ -350,6 +350,12 @@ def generate_synthetic_training_data() -> Tuple[np.ndarray, List[str]]:
                     if len(packet_buffer) == window_length:
                         # Extract features using this segment's layout parameters
                         feat = extract_features_from_window(packet_buffer, layout=(dist, az, height))
+                        
+                        # Fix false positives: only label as FALLING if within the active fall window (first 2.5s)
+                        # Otherwise it trains the RF to think static lying down = FALLING
+                        if state == "FALLING" and (step * dt) > 2.5:
+                            continue
+                            
                         X.append(feat)
                         y.append(state)
                         
