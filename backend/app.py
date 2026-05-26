@@ -163,7 +163,7 @@ def on_packet_captured(parsed_pkt: Dict[str, Any]):
             packet_window.pop(0)
             
         # Perform ML inference if we have enough samples
-        prediction = "UNKNOWN"
+        prediction = "CALIBRATING"
         probabilities = {}
         cir_data = {"avg_profile": [], "avg_profile_pre": [], "dynamic_tap": 0, "domino_ssnr": 0.0}
         is_ood = False
