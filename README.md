@@ -1,4 +1,4 @@
-# Aletheia — Wi-Fi Sensing for Passive Presence & Motion Detection
+# Aletheia - Wi-Fi Sensing for Passive Presence & Motion Detection
 
 <p align="center">
   <strong>Zero-hardware, privacy-preserving indoor sensing using standard Wi-Fi Beamforming Feedback (BFI)</strong>
@@ -8,14 +8,14 @@
 
 ## Overview
 
-Aletheia is a deep-tech Wi-Fi sensing system that detects **human presence, movement, and fall events** by analyzing the Channel State Information (CSI) embedded in standard 802.11ac/ax/bf Beamforming Feedback frames — without any cameras, wearables, or additional hardware.
+Aletheia is a deep-tech Wi-Fi sensing system that detects **human presence, movement, and fall events** by analyzing the Channel State Information (CSI) embedded in standard 802.11ac/ax/bf Beamforming Feedback frames - without any cameras, wearables, or additional hardware.
 
 ### Key Capabilities
 
 | Feature | Description |
 |---|---|
 | **Passive Sensing** | Detects presence, walking, and falls using existing Wi-Fi signals |
-| **Privacy-First** | No cameras or wearables — only radio wave analysis |
+| **Privacy-First** | No cameras or wearables - only radio wave analysis |
 | **Real-Time Dashboard** | Glassmorphic web UI with live φ/ψ waveforms, CIR profiles, and ML predictions |
 | **IEEE 802.11bf Ready** | Supports VHT (Cat 21), HE (Cat 26), and SENS (Cat 33) frame parsing |
 | **Aletheia-Shield** | Active defense system that scrambles BFI to prevent unauthorized sensing |
@@ -131,7 +131,7 @@ Open your browser and navigate to:
 http://localhost:8000
 ```
 
-The system starts in **simulation mode** by default — no Wi-Fi hardware needed.
+The system starts in **simulation mode** by default - no Wi-Fi hardware needed.
 
 ---
 
@@ -157,7 +157,7 @@ A 23-dimensional feature vector is extracted per window:
 - Layout priors (distance, azimuth, height)
 
 ### 5. Classification
-A Random Forest classifier maps features to states: **EMPTY**, **PRESENCE**, **WALKING**, **FALLING** — with a 5-frame majority vote filter for temporal smoothing.
+A Random Forest classifier maps features to states: **EMPTY**, **PRESENCE**, **WALKING**, **FALLING** - with a 5-frame majority vote filter for temporal smoothing.
 
 ---
 
@@ -184,10 +184,10 @@ The Shield module protects against unauthorized Wi-Fi sensing by:
 
 | State | Description |
 |---|---|
-| `EMPTY` | No occupant — static ambient channel |
-| `PRESENCE` | Stationary person — subtle breathing micro-Doppler |
-| `WALKING` | Person walking — periodic multipath oscillation |
-| `FALLING` | Fall event — rapid acceleration → impact → lying down |
+| `EMPTY` | No occupant - static ambient channel |
+| `PRESENCE` | Stationary person - subtle breathing micro-Doppler |
+| `WALKING` | Person walking - periodic multipath oscillation |
+| `FALLING` | Fall event - rapid acceleration → impact → lying down |
 
 ---
 
