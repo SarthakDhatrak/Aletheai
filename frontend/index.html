@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aletheai | Zero-Hack Wi-Fi Sensing & Motion Radar</title>
+    <!-- Premium Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="glow-backdrop"></div>
+    
+    <header class="app-header">
+        <div class="logo-area">
+            <span class="logo-icon">📡</span>
+            <div class="logo-text">
+                <h1>Aletheai</h1>
+                <p>Standard-Compliant BFI Passive Wi-Fi Radar</p>
+            </div>
+        </div>
+        <div class="connection-badge" id="connBadge">
+            <span class="badge-dot"></span>
+            <span class="badge-text">Connecting Server...</span>
+        </div>
+    </header>
+
+    <main class="dashboard-grid">
+        <!-- Column 1: Config, Info, Simulation -->
+        <section class="sidebar-column">
+            
+            <!-- System Telemetry Card -->
+            <div class="glass-card telemetry-card">
+                <h2 class="card-title">System Status</h2>
+                <div class="telemetry-grid">
+                    <div class="tel-item">
+                        <span class="tel-label">Interface Mode</span>
+                        <span class="tel-value" id="statusMode">SIMULATED</span>
+                    </div>
+                    <div class="tel-item">
+                        <span class="tel-label">Source Client</span>
+                        <span class="tel-value" id="statusSrc">00:00:00:00:00:00</span>
+                    </div>
+                    <div class="tel-item">
+                        <span class="tel-label">Signal (SNR)</span>
+                        <div class="snr-container">
+                            <span class="tel-value" id="statusSnr">-60 dBm</span>
+                            <div class="snr-bar"><div class="snr-fill" id="snrFill" style="width: 60%"></div></div>
+                        </div>
+                    </div>
+                    <div class="tel-item">
+                        <span class="tel-label">Subcarrier Count</span>
+                        <span class="tel-value" id="statusCarriers">52</span>
+                    </div>
+                    <div class="tel-item">
+                        <span class="tel-label">Sensing Standard</span>
+                        <span class="tel-value" id="statusStandard">VHT (802.11ac)</span>
+                    </div>
+                    <div class="tel-item">
+                        <span class="tel-label">Aletheia-Shield</span>
+                        <span class="tel-value" id="statusShield" style="color: var(--text-secondary);">INACTIVE</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sniffer Mode Settings -->
+            <div class="glass-card config-card">
+                <h2 class="card-title">Hardware Sniff Configuration</h2>
+                <form id="configForm" onsubmit="event.preventDefault();">
+                    <div class="form-group">
+                        <label for="modeSelect">Sniffing Mode</label>
+                        <select id="modeSelect" class="styled-select">
+                            <option value="simulation">High-Fidelity Physics Simulator</option>
+                            <option value="live">Passive Sniff (Monitor Mode)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="ifaceGroup" style="display: none;">
+                        <label for="ifaceInput">Monitor Interface</label>
+                        <input type="text" id="ifaceInput" class="styled-input" value="wlan0mon" placeholder="wlan0mon">
+                    </div>
+                    <button type="submit" class="action-btn primary-glow-btn">Apply Hardware Configuration</button>
+                </form>
+            </div>
+
+            <!-- Layout Calibration Card (PerceptAlign) -->
+            <div class="glass-card calibration-card">
+                <h2 class="card-title">Layout Calibration <span class="card-desc">PerceptAlign</span></h2>
+                <p class="card-subtitle">Set physical environment coordinate priors to anchor spatial variance:</p>
+                <form id="calibrationForm" onsubmit="event.preventDefault();">
+                    <div class="form-group">
+                        <label for="layoutDistanceInput">Transceiver Distance (m)</label>
+                        <input type="number" id="layoutDistanceInput" step="0.1" min="1.0" max="10.0" class="styled-input" value="4.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="layoutAzimuthInput">Relative Azimuth (°)</label>
+                        <input type="number" id="layoutAzimuthInput" step="1" min="-90" max="90" class="styled-input" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="layoutHeightInput">Transceiver Height (m)</label>
+                        <input type="number" id="layoutHeightInput" step="0.1" min="0.5" max="3.0" class="styled-input" value="1.5">
+                    </div>
+                    <button type="submit" class="action-btn primary-glow-btn">Apply Layout Coordinates</button>
+                </form>
+            </div>
+
+            <!-- IEEE 802.11bf & Aletheia-Shield Security Card -->
+            <div class="glass-card security-card">
+                <h2 class="card-title">802.11bf Sensing Standard & Shield</h2>
+                <p class="card-subtitle">Select sensing standard framework and toggle active obfuscation shield:</p>
+                <form id="securityForm" onsubmit="event.preventDefault();">
+                    <div class="form-group">
+                        <label for="formatSelect">Sensing Frame Format</label>
+                        <select id="formatSelect" class="styled-select">
+                            <option value="vht">Legacy VHT (802.11ac)</option>
+                            <option value="he">HE Sensing (802.11ax)</option>
+                            <option value="11bf">Native IEEE 802.11bf SENS</option>
+                        </select>
+                    </div>
+                    <div class="shield-control-group">
+                        <div class="shield-toggle-row">
+                            <span class="shield-status-icon" id="shieldStatusIcon">🔓</span>
+                            <div class="shield-toggle-text">
+                                <span class="shield-toggle-title">Aletheia-Shield Active Defense</span>
+                                <span class="shield-toggle-desc" id="shieldToggleDesc">Plaintext BFI Transmission</span>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="shieldToggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="shield-details-group" id="shieldDetailsGroup" style="display: none; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label for="shieldSeedInput">Shared Encryption Seed Key</label>
+                                <input type="number" id="shieldSeedInput" class="styled-input" value="42">
+                            </div>
+                            <div class="form-group">
+                                <label for="authSelect">Sensing Receiver Authority</label>
+                                <select id="authSelect" class="styled-select">
+                                    <option value="authorized">Authorized Receiver (Decryption ON)</option>
+                                    <option value="unauthorized">Unauthorized Interceptor (Scrambled Stream)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="action-btn primary-glow-btn" style="margin-top: 1rem;">Apply Security Settings</button>
+                </form>
+            </div>
+
+            <!-- Simulation Controller -->
+            <div class="glass-card sim-card" id="simControllerCard">
+                <h2 class="card-title">Simulation Scenario Injector</h2>
+                <p class="card-subtitle">Inject channel disturbances directly into the virtual environment:</p>
+                <div class="sim-buttons">
+                    <button class="sim-btn empty-btn" data-state="EMPTY">
+                        <span class="btn-icon">🍃</span> Leave Room (Empty)
+                    </button>
+                    <button class="sim-btn presence-btn" data-state="PRESENCE">
+                        <span class="btn-icon">🧘</span> Sit Down (Presence)
+                    </button>
+                    <button class="sim-btn motion-btn" data-state="WALKING">
+                        <span class="btn-icon">🚶</span> Walk Around (Motion)
+                    </button>
+                    <button class="sim-btn fall-btn" data-state="FALLING">
+                        <span class="btn-icon">⚠️</span> Simulate Fall (Emergency)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Custom Classifier Training -->
+            <div class="glass-card train-card">
+                <h2 class="card-title">Interactive ML Customizer</h2>
+                <p class="card-subtitle">Train the classifier on a custom activity or room position:</p>
+                <div class="training-suite">
+                    <div class="form-group">
+                        <label for="trainLabel">Activity Label</label>
+                        <input type="text" id="trainLabel" class="styled-input" placeholder="e.g. COOKING_IN_KITCHEN">
+                    </div>
+                    <div class="train-controls">
+                        <button id="recordBtn" class="action-btn record-btn">🔴 Start Recording</button>
+                        <button id="trainStopBtn" class="action-btn train-btn" disabled>⚡ Train Model</button>
+                    </div>
+                    <div class="record-counter" id="recordCounter" style="display: none;">
+                        Recording frames: <span id="recordedFramesCount">0</span>/20 (min)
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Column 2 & 3: Visualizers, Predictions, & Event Logs -->
+        <section class="main-column">
+            
+            <!-- Real-Time Inference Card (Main Panel) -->
+            <div class="glass-card state-display-card">
+                <div class="state-header">
+                    <h2>Live Activity Classification</h2>
+                    <span class="model-badge">RF Inference Active</span>
+                </div>
+                
+                <div class="state-result-wrapper">
+                    <!-- Big glowing indicator -->
+                    <div class="state-indicator-orb" id="stateOrb">
+                        <span class="orb-pulsar"></span>
+                        <div class="orb-content">
+                            <span class="state-label-desc">CURRENT STATUS</span>
+                            <span class="state-val-title" id="statePrediction">CALIBRATING</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Class Probability bars -->
+                    <div class="probabilities-panel">
+                        <div class="prob-row">
+                            <span class="prob-label">Empty Room (EMPTY)</span>
+                            <div class="prob-bar-container">
+                                <div class="prob-bar-fill empty-fill" id="prob_EMPTY" style="width: 0%"></div>
+                            </div>
+                            <span class="prob-value" id="val_EMPTY">0%</span>
+                        </div>
+                        <div class="prob-row">
+                            <span class="prob-label">Static Occupancy (PRESENCE)</span>
+                            <div class="prob-bar-container">
+                                <div class="prob-bar-fill presence-fill" id="prob_PRESENCE" style="width: 0%"></div>
+                            </div>
+                            <span class="prob-value" id="val_PRESENCE">0%</span>
+                        </div>
+                        <div class="prob-row">
+                            <span class="prob-label">Active Movement (WALKING)</span>
+                            <div class="prob-bar-container">
+                                <div class="prob-bar-fill motion-fill" id="prob_WALKING" style="width: 0%"></div>
+                            </div>
+                            <span class="prob-value" id="val_WALKING">0%</span>
+                        </div>
+                        <div class="prob-row">
+                            <span class="prob-label">Fall Warning (FALLING)</span>
+                            <div class="prob-bar-container">
+                                <div class="prob-bar-fill fall-fill" id="prob_FALLING" style="width: 0%"></div>
+                            </div>
+                            <span class="prob-value" id="val_FALLING">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Double Visualizers Grid -->
+            <div class="visualizer-grid">
+                
+                <!-- Polar Space Radar Canvas -->
+                <div class="glass-card visualizer-card">
+                    <h2 class="card-title">MIMO Space Radar <span class="card-desc">Givens Phase Coordinates (φ, ψ)</span></h2>
+                    <div class="canvas-wrapper">
+                        <canvas id="radarCanvas"></canvas>
+                    </div>
+                </div>
+
+                <!-- BFI Phase Heatmap -->
+                <div class="glass-card visualizer-card">
+                    <h2 class="card-title">Temporal BFI Phase Variance Heatmap <span class="card-desc">Subcarrier Index vs Time</span></h2>
+                    <div class="canvas-wrapper">
+                        <canvas id="heatmapCanvas"></canvas>
+                    </div>
+                </div>
+
+                <!-- Channel Impulse Response (CIR) -->
+                <div class="glass-card visualizer-card">
+                    <h2 class="card-title">Delay-Domain CIR Profile <span class="card-desc">Delay Tap vs Amplitude (Dylign Path)</span></h2>
+                    <div class="canvas-wrapper">
+                        <canvas id="cirCanvas"></canvas>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Logs / Smart Home Triggers -->
+            <div class="glass-card logs-card">
+                <div class="logs-header">
+                    <h2 class="card-title">Smart Home Event Trigger Log</h2>
+                    <button class="clear-logs-btn" onclick="clearEventLogs()">Clear Log</button>
+                </div>
+                <div class="logs-container" id="eventLogs">
+                    <div class="log-row info">
+                        <span class="log-time">[System Init]</span>
+                        <span class="log-text">Aletheai passive sensor initiated. Ready for connection.</span>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>Aletheai Wi-Fi Radar • Privacy-Preserving RF Sensing System</p>
+    </footer>
+
+    <!-- Persistent Fall Alarm Overlay -->
+    <div id="fallAlarmOverlay" class="fall-alarm-overlay" style="display: none;">
+        <div class="alarm-modal">
+            <span class="alarm-icon">🚨</span>
+            <h2>CRITICAL EMERGENCY</h2>
+            <p>A high-impact fall signature has been detected by Aletheai Space Radar!</p>
+            <div class="alarm-actions">
+                <button class="action-btn dismiss-btn" onclick="dismissFallAlarm()">Dismiss & Reset Sensor</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
