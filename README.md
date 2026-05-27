@@ -62,4 +62,6 @@ To test Aletheia in a real-world physical environment:
 4. Watch the Space Radar visualize the phase coordinates of the physical environment in real-time!
 
 ## 📜 License
-Private & Proprietary. All rights reserved.
+MIT License
+
+##Developed By Sarthak Dhatrak and Sunny Yadav
